@@ -2,19 +2,23 @@ package main
 
 import (
 	"bufio"
+	"github.com/monoxane/nkrosstalk/nk"
 	"io"
 	"log"
 	"net"
 	"strconv"
 	"strings"
-
-	"github.com/monoxane/nkrosstalk/nk"
 )
 
-var Router nk.NKType
-
 func main() {
-	Router = nk.New("10.101.41.2", 254, 72, 72)
+	//Router := nk.New("10.101.41.2", 254, 72, 72)
+	Router := nk.NKType{
+		Host:         "10.101.41.2",
+		Address:      254,
+		Destinations: 72,
+		Sources:      72,
+	}
+
 	log.Println(Router)
 	listener, err := net.Listen("tcp", "0.0.0.0:9999") // Listen on port 9999 for dev reasons
 	if err != nil {
@@ -29,11 +33,11 @@ func main() {
 			continue
 		}
 
-		go handleClientRequest(con) // Fork request process
+		go handleClientRequest(con, Router) // Fork request process
 	}
 }
 
-func handleClientRequest(con net.Conn) {
+func handleClientRequest(con net.Conn, r nk.NKType) {
 	defer con.Close()
 
 	clientReader := bufio.NewReader(con)
@@ -54,7 +58,8 @@ func handleClientRequest(con net.Conn) {
 					level, _ := strconv.ParseInt(strings.Split(command[1], ":")[0], 10, 0)
 					destination, _ := strconv.ParseInt(strings.Split(command[1], ":")[1], 10, 0)
 					source, _ := strconv.ParseInt(strings.Split(command[1], ":")[2], 10, 8)
-					Router.XPT(uint32(level), uint16(destination), uint16(source))
+					payload, err := r.XPT(uint32(level), uint16(destination), uint16(source))
+					log.Println(payload, err)
 					return
 				}
 				log.Println(command)

@@ -3,6 +3,7 @@ package nk
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"log"
 	"net"
 )
@@ -15,7 +16,7 @@ type NKType struct {
 	Destinations uint16
 	Sources      uint16
 	Con          net.Conn
-	XPT          XPTType
+	//XPT          XPTType
 }
 
 func crc16(buffer []byte) uint16 {
@@ -38,77 +39,69 @@ func crc16(buffer []byte) uint16 {
 	return uint16(crc)
 }
 
-func New(host string, address uint8, destinations uint16, sources uint16) NKType {
-	XPT := func(level uint32, _destination uint16, _source uint16) int {
-		if (level < 8) && (_destination <= destinations) && (_source <= sources) {
-			log.Println("Data:", level, _destination, _source, address)
+// XPT Just returns payload to send to router to close xpt
+func (n *NKType) XPT(level uint32, destination uint16, source uint16) ([]byte, error) {
+	if !(level < 8) && !(destination <= n.Destinations) && !(source <= n.Sources) {
+		return []byte{}, errors.New("Something is out of bounds?")
+	} else {
+		log.Println("Data:", level, destination, source, n.Address)
 
-			var destination uint16 = _destination - 1
-			var source uint16 = _source - 1
+		var destination uint16 = destination - 1
+		var source uint16 = source - 1
 
-			type TBusPacketPayload struct {
-				NK2Header   uint32
-				RTRAddress  uint8
-				UNKNB       uint16
-				Destination uint16
-				Source      uint16
-				LevelMask   uint32
-				UNKNC       uint8
-			}
-
-			type TBusPacket struct {
-				HeaderA uint32
-				HeaderB uint16
-				Payload TBusPacketPayload
-				CRC     uint16
-			}
-
-			payload := TBusPacketPayload{
-				NK2Header:   0x4e4b3200,
-				RTRAddress:  address,
-				UNKNB:       0x0409,
-				Destination: destination,
-				Source:      source,
-				LevelMask:   level,
-				UNKNC:       0x00,
-			}
-
-			payloadBuffer := new(bytes.Buffer)
-			err := binary.Write(payloadBuffer, binary.BigEndian, payload)
-			if err != nil {
-				log.Println("TBusPacketPayload binary.Write failed:", err)
-			}
-
-			packet := TBusPacket{
-				HeaderA: 0x50415332,
-				HeaderB: 0x0012,
-				Payload: payload,
-				CRC:     crc16(payloadBuffer.Bytes()),
-			}
-
-			log.Println(packet)
-			packetBuffer := new(bytes.Buffer)
-			err = binary.Write(packetBuffer, binary.BigEndian, packet)
-			if err != nil {
-				log.Println("TBustPacket binary.Write failed:", err)
-			}
-			log.Printf("%x", packetBuffer.Bytes())
-			log.Println("5041533200124e4b3200fe04090040003100000001005de9")
-
-			return 0
-		} else {
-			return 1
+		type TBusPacketPayload struct {
+			NK2Header   uint32
+			RTRAddress  uint8
+			UNKNB       uint16
+			Destination uint16
+			Source      uint16
+			LevelMask   uint32
+			UNKNC       uint8
 		}
-	}
 
-	return NKType{
-		Host:         host,
-		Address:      address,
-		Sources:      sources,
-		Destinations: destinations,
-		XPT:          XPT,
+		type TBusPacket struct {
+			HeaderA uint32
+			HeaderB uint16
+			Payload TBusPacketPayload
+			CRC     uint16
+		}
+
+		payload := TBusPacketPayload{
+			NK2Header:   0x4e4b3200,
+			RTRAddress:  n.Address,
+			UNKNB:       0x0409,
+			Destination: destination,
+			Source:      source,
+			LevelMask:   level,
+			UNKNC:       0x00,
+		}
+
+		payloadBuffer := new(bytes.Buffer)
+		err := binary.Write(payloadBuffer, binary.BigEndian, payload)
+		if err != nil {
+			log.Println("TBusPacketPayload binary.Write failed:", err)
+		}
+
+		packet := TBusPacket{
+			HeaderA: 0x50415332,
+			HeaderB: 0x0012,
+			Payload: payload,
+			CRC:     crc16(payloadBuffer.Bytes()),
+		}
+
+		log.Println(packet)
+		packetBuffer := new(bytes.Buffer)
+		err = binary.Write(packetBuffer, binary.BigEndian, packet)
+		if err != nil {
+			log.Println("TBustPacket binary.Write failed:", err)
+		}
+		log.Printf("%x", packetBuffer.Bytes())
+		log.Println("5041533200124e4b3200fe04090040003100000001005de9")
+
+		return packetBuffer.Bytes(), nil
 	}
 }
+
 
 // 5041533200124e4b3200fe04090040003100000001005de9
 // 504153320012
