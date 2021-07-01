@@ -1,22 +1,23 @@
 package nk
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
 	"log"
 	"net"
+	"strings"
+	"time"
 )
-
-type XPTType func(level uint32, destination uint16, source uint16) int
 
 type NKType struct {
 	Host         string
 	Address      uint8
 	Destinations uint16
 	Sources      uint16
-	Con          net.Conn
-	//XPT          XPTType
+	Conn         net.Conn
 }
 
 func crc16(buffer []byte) uint16 {
@@ -40,11 +41,11 @@ func crc16(buffer []byte) uint16 {
 }
 
 // XPT Just returns payload to send to router to close xpt
-func (n *NKType) XPT(level uint32, destination uint16, source uint16) ([]byte, error) {
+func (n *NKType) GenerateXPTRequest(level uint32, destination uint16, source uint16) ([]byte, error) {
 	if !(level < 8) && !(destination <= n.Destinations) && !(source <= n.Sources) {
-		return []byte{}, errors.New("Something is out of bounds?")
+		return []byte{}, errors.New("source or destination out of bounds")
 	} else {
-		log.Println("Data:", level, destination, source, n.Address)
+		// log.Println("Data:", level, destination, source, n.Address)
 
 		var destination uint16 = destination - 1
 		var source uint16 = source - 1
@@ -89,19 +90,67 @@ func (n *NKType) XPT(level uint32, destination uint16, source uint16) ([]byte, e
 			CRC:     crc16(payloadBuffer.Bytes()),
 		}
 
-		log.Println(packet)
+		// log.Println(packet)
 		packetBuffer := new(bytes.Buffer)
 		err = binary.Write(packetBuffer, binary.BigEndian, packet)
 		if err != nil {
 			log.Println("TBustPacket binary.Write failed:", err)
 		}
-		log.Printf("%x", packetBuffer.Bytes())
-		log.Println("5041533200124e4b3200fe04090040003100000001005de9")
+		// log.Printf("%x", packetBuffer.Bytes())
+		// log.Println("5041533200124e4b3200fe04090040003100000001005de9")
 
 		return packetBuffer.Bytes(), nil
 	}
 }
 
+func (n *NKType) Connect() {
+	conn, err := net.Dial("tcp", n.Host+":5000")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	n.Conn = conn
+	defer n.Conn.Close()
+
+	serverReader := bufio.NewReader(n.Conn)
+
+	openConnStr := strings.TrimSpace("PHEONIX-DB")
+	if _, err = n.Conn.Write([]byte(openConnStr + "\n")); err != nil {
+		log.Printf("failed to send the client request: %v\n", err)
+	}
+
+	go func() {
+		for range time.Tick(10 * time.Second) {
+			n.Conn.Write([]byte("HI"))
+		}
+	}()
+
+	for {
+
+		serverResponse, err := serverReader.ReadString('\n')
+		switch err {
+		case nil:
+			log.Println(strings.TrimSpace(serverResponse))
+		case io.EOF:
+			log.Println("server closed the connection")
+			return
+		default:
+			log.Printf("server error: %v\n", err)
+			return
+		}
+	}
+}
+
+func (n *NKType) SetCrosspoint(level uint32, destination uint16, source uint16) error {
+	XPTRequest, err := n.GenerateXPTRequest(level, destination, source)
+	if err != nil {
+		return err
+	}
+	_, err = n.Conn.Write(XPTRequest)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 // 5041533200124e4b3200fe04090040003100000001005de9
 // 504153320012

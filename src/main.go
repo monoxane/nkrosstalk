@@ -2,12 +2,13 @@ package main
 
 import (
 	"bufio"
-	"github.com/monoxane/nkrosstalk/nk"
 	"io"
 	"log"
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/monoxane/nkrosstalk/nk"
 )
 
 func main() {
@@ -19,7 +20,8 @@ func main() {
 		Sources:      72,
 	}
 
-	log.Println(Router)
+	go Router.Connect()
+
 	listener, err := net.Listen("tcp", "0.0.0.0:9999") // Listen on port 9999 for dev reasons
 	if err != nil {
 		log.Fatalln(err)
@@ -58,11 +60,13 @@ func handleClientRequest(con net.Conn, r nk.NKType) {
 					level, _ := strconv.ParseInt(strings.Split(command[1], ":")[0], 10, 0)
 					destination, _ := strconv.ParseInt(strings.Split(command[1], ":")[1], 10, 0)
 					source, _ := strconv.ParseInt(strings.Split(command[1], ":")[2], 10, 8)
-					payload, err := r.XPT(uint32(level), uint16(destination), uint16(source))
-					log.Println(payload, err)
+					log.Println("Routing", source, "=>", destination, "@", level)
+					err := r.SetCrosspoint(uint32(level), uint16(destination), uint16(source))
+					if err != nil {
+						log.Println(err)
+					}
 					return
 				}
-				log.Println(command)
 			}
 		} else if err == io.EOF {
 			log.Println("client closed the connection by terminating the process")
