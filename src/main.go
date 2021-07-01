@@ -5,27 +5,45 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"strconv"
 	"strings"
-
-	"github.com/monoxane/nkrosstalk/nk"
 )
 
+func getEnv(key, fallback string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		value = fallback
+	}
+	return value
+}
+
 func main() {
-	Router := nk.IPS{
-		Host:         "10.101.41.2",
-		Address:      254,
-		Destinations: 72,
-		Sources:      72,
+	// Mess of env vars and converstions to ints
+	listenPort := getEnv("NK_LISTEN", "7788")
+	nkHost := getEnv("NK_HOST", "10.0.0.0")
+	nkAddress, _ := strconv.ParseInt(getEnv("NK_SIZE", "254"), 10, 0)
+	nkSize, _ := strconv.ParseInt(getEnv("NK_SIZE", "16"), 10, 0)
+
+	// Suprise suprise more type casting
+	Router := IPS{
+		Host:         nkHost,
+		Address:      uint8(nkAddress),
+		Destinations: uint16(nkSize),
+		Sources:      uint16(nkSize),
 	}
 
-	go Router.Connect()
+	go Router.Connect() // Fork it out here or it hangs
 
-	listener, err := net.Listen("tcp", "0.0.0.0:9999") // Listen on port 9999 for dev reasons
+	listener, err := net.Listen("tcp", "0.0.0.0:"+listenPort)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer listener.Close()
+
+	// Let the user know what's going on
+	log.Println("Listening for RossTalk on tcp://0.0.0.0:" + listenPort)
+	log.Println("XPT <level>:<destination>:<source>")
 
 	for {
 		con, err := listener.Accept()
@@ -38,7 +56,7 @@ func main() {
 	}
 }
 
-func handleClientRequest(con net.Conn, r nk.IPS) {
+func handleClientRequest(con net.Conn, r IPS) {
 	defer con.Close()
 
 	clientReader := bufio.NewReader(con)

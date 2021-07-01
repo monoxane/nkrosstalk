@@ -1,4 +1,4 @@
-package nk
+package main
 
 import (
 	"bufio"

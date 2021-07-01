@@ -2,7 +2,7 @@ FROM golang:latest
 
 WORKDIR /nkrosstalk
 ADD . .
-RUN go build src/main.go
+RUN go build -o nkrosstalk src/main.go src/nk.go
 
-EXPOSE 9999
-CMD ./main
+EXPOSE 7788
+CMD ./nkrosstalk
