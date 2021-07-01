@@ -12,8 +12,7 @@ import (
 )
 
 func main() {
-	//Router := nk.New("10.101.41.2", 254, 72, 72)
-	Router := nk.NKType{
+	Router := nk.IPS{
 		Host:         "10.101.41.2",
 		Address:      254,
 		Destinations: 72,
@@ -39,7 +38,7 @@ func main() {
 	}
 }
 
-func handleClientRequest(con net.Conn, r nk.NKType) {
+func handleClientRequest(con net.Conn, r nk.IPS) {
 	defer con.Close()
 
 	clientReader := bufio.NewReader(con)
